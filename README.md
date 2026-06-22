@@ -2,7 +2,7 @@
 
 A smart resume ranking tool that matches resumes against a job description — powered by NLP and transformer embeddings.
 
-🔗 **Live App:** [Add your Streamlit Cloud URL here after deployment]
+🔗 https://resume-ranker-mahekgelra.streamlit.app/
 
 ---
 
