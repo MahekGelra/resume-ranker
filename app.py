@@ -4,7 +4,7 @@ import plotly.express as px
 from utils.pdf_extractor import extract_text_from_pdf
 from utils.embeddings import get_embedding
 from utils.similarity import calculate_similarity
-from utils.skills import extract_skills, get_missing_skills, calculate_ats_score
+from utils.skills import extract_keywords_from_text, extract_skills, get_missing_skills, calculate_ats_score
 
 st.title("Resume Ranker")
 
@@ -24,7 +24,9 @@ if st.button("Analyze Resumes"):
         st.warning("Please upload at least one resume.")
     else:
         job_embedding = get_embedding(job_description)
-        jd_skills = extract_skills(job_description)
+
+        # Dynamically extract keywords from JD — works for any domain
+        jd_skills = extract_keywords_from_text(job_description, top_n=20)
 
         results = []
 
@@ -38,7 +40,7 @@ if st.button("Analyze Resumes"):
             resume_embedding = get_embedding(resume_text)
             score = calculate_similarity(job_embedding, resume_embedding)
 
-            resume_skills = extract_skills(resume_text)
+            resume_skills = extract_skills(resume_text, skill_list=jd_skills)
             ats_score = calculate_ats_score(jd_skills, resume_skills)
             missing_skills = get_missing_skills(jd_skills, resume_skills)
 
@@ -51,7 +53,6 @@ if st.button("Analyze Resumes"):
         if not ranked_results:
             st.info("No resumes could be successfully analyzed.")
         else:
-            # Build a DataFrame for charting
             chart_data = pd.DataFrame({
                 "Resume": [r[0] for r in ranked_results],
                 "Similarity Score": [r[1] for r in ranked_results],
@@ -81,9 +82,9 @@ if st.button("Analyze Resumes"):
                     st.caption(f"ATS Keyword Match: {ats_score:.0f}%")
 
                     if missing_skills:
-                        st.caption("Missing skills: " + ", ".join(sorted(missing_skills)))
+                        st.caption("Missing keywords: " + ", ".join(sorted(missing_skills)))
                     else:
-                        st.caption("All identified JD skills present.")
+                        st.caption("All key JD terms present in resume.")
 
                 with col2:
                     st.metric(label="Similarity", value=f"{score:.2f}")

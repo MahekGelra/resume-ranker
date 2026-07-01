@@ -1,57 +1,114 @@
-# A curated reference list of common technical and soft skills relevant
-# to data/tech roles. This acts as our "vocabulary" for keyword matching.
-SKILL_KEYWORDS = [
-    "python", "java", "c++", "sql", "r", "javascript", "html", "css",
-    "machine learning", "deep learning", "nlp", "natural language processing",
-    "computer vision", "data analysis", "data visualization", "pandas",
-    "numpy", "scikit-learn", "tensorflow", "pytorch", "keras",
-    "power bi", "tableau", "excel", "statistics", "data structures",
-    "algorithms", "git", "github", "docker", "kubernetes", "aws", "azure",
-    "gcp", "cloud computing", "rest api", "flask", "django", "streamlit",
-    "fastapi", "mongodb", "mysql", "postgresql", "data cleaning",
-    "data preprocessing", "feature engineering", "model evaluation",
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+# Fallback keyword list — used ONLY if TF-IDF extraction
+# returns too few keywords (e.g. very short job description)
+FALLBACK_KEYWORDS = [
+    "python", "java", "sql", "machine learning", "deep learning",
+    "nlp", "data analysis", "pandas", "numpy", "scikit-learn",
+    "tensorflow", "pytorch", "git", "docker", "aws", "azure",
     "communication", "teamwork", "problem solving", "leadership",
-    "project management", "agile", "scrum",
 ]
 
 
-def extract_skills(text, skill_list=SKILL_KEYWORDS):
+def extract_keywords_from_text(text, top_n=20):
     """
-    Finds which skills from skill_list appear in the given text.
+    Dynamically extracts the most important keywords from any text
+    using TF-IDF scoring — works for any domain (tech, HR, marketing, etc.)
 
     Parameters:
-        text (str): The text to search (job description or resume)
-        skill_list (list): List of skill keywords to search for
+        text (str): The text to extract keywords from (usually job description)
+        top_n (int): How many top keywords to extract
 
     Returns:
-        set: Skills found in the text (lowercased)
+        set: A set of important keyword strings (lowercased)
     """
+    # TfidfVectorizer converts text into TF-IDF scores per word
+    # stop_words="english" automatically filters out common words
+    # like "the", "and", "is", "a" — they have low IDF scores anyway
+    # ngram_range=(1,2) captures both single words ("python")
+    # and two-word phrases ("machine learning", "data analysis")
+    vectorizer = TfidfVectorizer(
+        stop_words="english",
+        ngram_range=(1, 2),
+        max_features=500
+    )
+
+    try:
+        # fit_transform learns the vocabulary and scores from our text
+        # We wrap text in a list because TfidfVectorizer expects
+        # a list of documents, even if we only have one
+        tfidf_matrix = vectorizer.fit_transform([text])
+
+        # Get the feature names (the actual words/phrases)
+        feature_names = vectorizer.get_feature_names_out()
+
+        # Get the TF-IDF scores for our single document
+        # .toarray()[0] converts sparse matrix to a flat array of scores
+        scores = tfidf_matrix.toarray()[0]
+
+        # Pair each word with its score, sort by score descending,
+        # take the top_n highest scoring words
+        top_keywords = sorted(
+            zip(feature_names, scores),
+            key=lambda x: x[1],
+            reverse=True
+        )[:top_n]
+
+        # Return just the words (not the scores) as a set
+        keywords = {word for word, score in top_keywords if score > 0}
+
+        # If we got enough keywords, return them
+        if len(keywords) >= 5:
+            return keywords
+
+        # If JD was too short/vague, fall back to our manual list
+        return set(FALLBACK_KEYWORDS)
+
+    except Exception as e:
+        print(f"TF-IDF extraction failed: {e}")
+        return set(FALLBACK_KEYWORDS)
+
+
+def extract_skills(text, skill_list=None):
+    """
+    Checks which keywords from skill_list appear in the given text.
+
+    Parameters:
+        text (str): Resume text to search through
+        skill_list (set): Keywords to look for (from JD's TF-IDF extraction)
+
+    Returns:
+        set: Keywords found in the text
+    """
+    if skill_list is None:
+        skill_list = set(FALLBACK_KEYWORDS)
+
     text_lower = text.lower()
-    found_skills = set()
+    found = set()
 
-    for skill in skill_list:
-        if skill.lower() in text_lower:
-            found_skills.add(skill.lower())
+    for keyword in skill_list:
+        if keyword.lower() in text_lower:
+            found.add(keyword.lower())
 
-    return found_skills
+    return found
 
 
 def get_missing_skills(jd_skills, resume_skills):
     """
-    Returns skills required by the job description but absent from the resume.
+    Returns skills required by JD but absent from the resume.
     """
     return jd_skills - resume_skills
 
 
 def calculate_ats_score(jd_skills, resume_skills):
     """
-    Calculates the percentage of job-description skills found in the resume.
+    Calculates what percentage of JD keywords appear in the resume.
 
     Returns:
-        float: A percentage from 0 to 100
+        float: Percentage from 0 to 100
     """
     if not jd_skills:
         return 0.0
 
-    matched_skills = jd_skills.intersection(resume_skills)
-    return (len(matched_skills) / len(jd_skills)) * 100
+    matched = jd_skills.intersection(resume_skills)
+    return (len(matched) / len(jd_skills)) * 100
